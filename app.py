@@ -170,83 +170,133 @@ if page == "Input":
                     keywords = [kw['text'] for kw in response.get('keywords', [])]
                     keyword_string = ', '.join(keywords)
 
-                    with open(filename, 'a') as file:
-                        file.write(f"{text_input}\nKeywords: {keyword_string}\n\n")
-                    
-                    st.session_state.uploaded_text = text_input
+                    with open(filename, 'a', encoding='utf-8') as file:
+                        file.write(f"Text: {text_input}\nKeywords: {keyword_string}\n\n")
+
+                    st.session_state.transcribed_text = ""
                     st.success("Text and keywords saved successfully!")
                 except Exception as e:
-                    st.error(f"Error extracting keywords: {e}")
+                    st.error(f"Error processing text: {e}")
         else:
-            st.warning("Please enter some text to save.")
+            st.warning("Please enter some text before saving.")
 
-    # ----------------------- Text Upload Section -----------------------
+    # ----------------------- File Upload Section -----------------------
 
-    st.header("📄 Upload Text File")
-    uploaded_file = st.file_uploader("Upload a .pdf or .docx file", type=['pdf', 'docx'])
+    st.header("📂 Upload Document")
+    uploaded_file = st.file_uploader("Choose a PDF or DOCX file", type=["pdf", "docx"])
 
     if uploaded_file is not None:
-        with st.spinner("Processing file..."):
+        with st.spinner("Processing uploaded file..."):
             try:
                 if uploaded_file.type == "application/pdf":
-                    doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
-                    text = ""
-                    for page in doc:
-                        text += page.get_text()
+                    with fitz.open(stream=uploaded_file.read(), filetype="pdf") as pdf:
+                        text = ""
+                        for page in pdf:
+                            text += page.get_text()
                 elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
                     doc = Document(uploaded_file)
-                    text = "\n".join([paragraph.text for paragraph in doc.paragraphs])
-                
-                st.session_state.uploaded_text = text
-                st.success("File processed successfully!")
+                    text = "\n".join([para.text for para in doc.paragraphs])
+                else:
+                    st.error("Unsupported file type!")
+                    text = ""
+
+                if text:
+                    st.session_state.uploaded_text = text
+                    st.text_area("Extracted Text:", value=text, height=300)
+
+                    if st.button("Save Extracted Text"):
+                        with st.spinner("Extracting keywords and saving text..."):
+                            try:
+                                response = nlu.analyze(
+                                    text=text,
+                                    features=Features(
+                                        keywords=KeywordsOptions(limit=15)
+                                    )
+                                ).get_result()
+
+                                keywords = [kw['text'] for kw in response.get('keywords', [])]
+                                keyword_string = ', '.join(keywords)
+
+                                with open(filename, 'a', encoding='utf-8') as file:
+                                    file.write(f"Text: {text}\nKeywords: {keyword_string}\n\n")
+
+                                st.session_state.uploaded_text = ""
+                                st.success("Extracted text and keywords saved successfully!")
+                            except Exception as e:
+                                st.error(f"Error processing extracted text: {e}")
+                else:
+                    st.error("No text extracted from the uploaded file.")
             except Exception as e:
                 st.error(f"Error processing file: {e}")
-
-    if st.session_state.uploaded_text:
-        st.text_area("Extracted Text:", value=st.session_state.uploaded_text, height=300)
 
 # ----------------------- Search Page -----------------------
 
 elif page == "Search":
     st.title("🔍 Search Page")
 
-    # ----------------------- Search Input Section -----------------------
-
-    st.header("🔍 Enter Your Search Query")
-    st.session_state.query_input = st.text_input("Search:", value=st.session_state.query_input)
+    st.header("🔎 Search Stored Knowledge")
+    query_input = st.text_input("Enter keywords to search:")
 
     if st.button("Search"):
-        if st.session_state.query_input.strip():
-            with st.spinner("Searching..."):
+        if query_input.strip():
+            with st.spinner("Searching for relevant texts..."):
                 try:
-                    response = aiml_client.chat_completions_create(
-                        model="text-davinci-003",
-                        messages=[
-                            {"role": "user", "content": st.session_state.query_input}
-                        ]
-                    )
-                    st.session_state.search_results = response.get("choices", [{}])[0].get("message", {}).get("content", "")
-                    st.success("Search completed!")
+                    query_keywords = [kw.strip().lower() for kw in query_input.split(',')]
+
+                    all_keywords = []
+                    all_texts = []
+
+                    try:
+                        with open(filename, 'r', encoding='utf-8') as file:
+                            lines = file.readlines()
+
+                            current_text = ""
+                            current_keywords = ""
+                            for line in lines:
+                                if line.startswith("Text:"):
+                                    current_text = line.replace("Text:", "").strip()
+                                elif line.startswith("Keywords:"):
+                                    current_keywords = [kw.strip().lower() for kw in line.replace("Keywords:", "").split(',')]
+                                    all_texts.append(current_text)
+                                    all_keywords.append(current_keywords)
+                    except FileNotFoundError:
+                        st.error("No data found. Please add some entries in the Input page first.")
+
+                    # Find matching texts
+                    matching_texts = []
+                    for text, keywords in zip(all_texts, all_keywords):
+                        if any(keyword in keywords for keyword in query_keywords):
+                            matching_texts.append(text)
+
+                    if matching_texts:
+                        st.session_state.search_results = matching_texts
+                        st.success("Search completed!")
+                    else:
+                        st.session_state.search_results = []
+                        st.warning("No matching texts found.")
+
                 except Exception as e:
                     st.error(f"Error during search: {e}")
         else:
-            st.warning("Please enter a query to search.")
-
-    # ----------------------- Search Results Section -----------------------
+            st.warning("Please enter keywords to search.")
 
     if st.session_state.search_results:
-        st.header("🔍 Search Results")
-        st.write(st.session_state.search_results)
+        st.header("📄 Search Results")
+        for idx, result in enumerate(st.session_state.search_results):
+            st.markdown(f"### Result {idx + 1}")
+            st.text_area("", result, height=150)
 
-        if st.button("Save Search Results as PDF"):
-            pdf = generate_pdf([st.session_state.query_input, st.session_state.search_results])
-            pdf_file = BytesIO()
-            pdf.output(pdf_file)
-            pdf_file.seek(0)
-
-            st.download_button(
-                label="Download PDF",
-                data=pdf_file,
-                file_name="search_results.pdf",
-                mime="application/pdf"
-            )
+        if st.button("Generate PDF of Results"):
+            with st.spinner("Generating PDF..."):
+                try:
+                    pdf = generate_pdf(st.session_state.search_results)
+                    pdf_bytes = pdf.output(dest='S').encode('latin1')
+                    st.download_button(
+                        label="Download PDF",
+                        data=pdf_bytes,
+                        file_name="search_results.pdf",
+                        mime="application/pdf"
+                    )
+                    st.success("PDF generated successfully!")
+                except Exception as e:
+                    st.error(f"Error generating PDF: {e}")
