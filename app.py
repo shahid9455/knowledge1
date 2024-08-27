@@ -25,8 +25,8 @@ nlu = NaturalLanguageUnderstandingV1(
 nlu.set_service_url(nlu_url)
 
 # Speech to Text Configuration
-stt_api_key = 'YOUR_IBM_WATSON_SPEECH_TO_TEXT_API_KEY'
-stt_url = 'YOUR_IBM_WATSON_SPEECH_TO_TEXT_URL'
+stt_api_key = 'LZIYjqxXb_9SzB__zoKP3B_RsciBfjrlqpeezDC-HbRD'
+stt_url = 'https://api.au-syd.speech-to-text.watson.cloud.ibm.com/instances/ef13fb51-cbd7-488c-83ce-1363fd782882'
 
 stt_authenticator = IAMAuthenticator(stt_api_key)
 speech_to_text = SpeechToTextV1(authenticator=stt_authenticator)
