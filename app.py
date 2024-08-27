@@ -120,12 +120,12 @@ def generate_pdf(texts):
 # ----------------------- Navigation Sidebar -----------------------
 
 st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["Home", "Audio Recording", "Search"])
+page = st.sidebar.radio("Go to", ["Input", "Audio Recording", "Search"])
 
-# ----------------------- Home Page -----------------------
+# ----------------------- Input Page -----------------------
 
-if page == "Home":
-    st.title("📥 Home Page")
+if page == "Input":
+    st.title("📥 Input Page")
 
     # ----------------------- Text Input Section -----------------------
 
@@ -208,9 +208,11 @@ if page == "Home":
 # ----------------------- Audio Recording Page -----------------------
 
 elif page == "Audio Recording":
-    st.title("🎤 Audio Recording")
+    st.title("🎤 Audio Recording Page")
 
-    st.header("🎤 Record and Save Text")
+    # ----------------------- Audio Recording Section -----------------------
+
+    st.header("🎤 Voice Recording")
 
     wav_audio_data = st_audiorec()
 
@@ -232,8 +234,10 @@ elif page == "Audio Recording":
             except Exception as e:
                 st.error(f"Error transcribing audio: {e}")
 
-    st.header("📝 Transcribed Text")
-    text_input = st.text_area("Text from transcription:", value=st.session_state.transcribed_text, height=200)
+    # ----------------------- Text Input Section -----------------------
+
+    st.header("📝 Save Transcribed Text")
+    text_input = st.text_area("Enter text to save:", value=st.session_state.transcribed_text, height=200)
 
     if st.button("Save Text"):
         if text_input.strip():
@@ -330,4 +334,3 @@ elif page == "Search":
                     st.success("PDF generated successfully!")
                 except Exception as e:
                     st.error(f"Error generating PDF: {e}")
-
