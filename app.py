@@ -120,36 +120,12 @@ def generate_pdf(texts):
 # ----------------------- Navigation Sidebar -----------------------
 
 st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["Input", "Search", "Audio Recording"])
+page = st.sidebar.radio("Go to", ["Home", "Audio Recording", "Search"])
 
-# ----------------------- Input Page -----------------------
+# ----------------------- Home Page -----------------------
 
-if page == "Input":
-    st.title("📥 Input Page")
-
-    # ----------------------- Audio Recording Section -----------------------
-
-    st.header("🎤 Voice Recording")
-
-    wav_audio_data = st_audiorec()
-
-    if wav_audio_data is not None:
-        st.audio(wav_audio_data, format='audio/wav')
-        with st.spinner("Transcribing audio..."):
-            try:
-                audio_stream = BytesIO(wav_audio_data)
-                recognition_result = speech_to_text.recognize(
-                    audio=audio_stream,
-                    content_type='audio/wav',
-                    model='en-US_BroadbandModel',
-                    max_alternatives=1
-                ).get_result()
-                
-                transcript = recognition_result['results'][0]['alternatives'][0]['transcript']
-                st.session_state.transcribed_text = transcript
-                st.success("Audio transcribed successfully!")
-            except Exception as e:
-                st.error(f"Error transcribing audio: {e}")
+if page == "Home":
+    st.title("📥 Home Page")
 
     # ----------------------- Text Input Section -----------------------
 
@@ -229,43 +205,6 @@ if page == "Input":
             except Exception as e:
                 st.error(f"Error processing file: {e}")
 
-# ----------------------- Search Page -----------------------
-
-elif page == "Search":
-    st.title("🔍 Search Page")
-
-    st.header("🔎 Search Stored Knowledge")
-    query_input = st.text_input("Enter keywords to search:")
-
-    if st.button("Search"):
-        if query_input.strip():
-            with st.spinner("Searching for relevant texts..."):
-                try:
-                    query_keywords = [kw.strip().lower() for kw in query_input.split(',')]
-
-                    all_keywords = []
-                    with open(filename, 'r', encoding='utf-8') as file:
-                        stored_texts = file.read().split('\n\n')
-                        for text_block in stored_texts:
-                            if "Keywords:" in text_block:
-                                keyword_line = text_block.split("Keywords:")[1].strip().lower()
-                                all_keywords.append((text_block, keyword_line.split(', ')))
-
-                    search_results = [text for text, kw_list in all_keywords if any(kw in kw_list for kw in query_keywords)]
-
-                    st.session_state.search_results = search_results
-
-                    if search_results:
-                        st.success("Search completed! Relevant texts found:")
-                        for result in search_results:
-                            st.markdown(f"<pre>{result}</pre>", unsafe_allow_html=True)
-                    else:
-                        st.warning("No relevant texts found for the given keywords.")
-                except Exception as e:
-                    st.error(f"Error during search: {e}")
-        else:
-            st.warning("Please enter some keywords to search.")
-
 # ----------------------- Audio Recording Page -----------------------
 
 elif page == "Audio Recording":
@@ -319,3 +258,76 @@ elif page == "Audio Recording":
                     st.error(f"Error processing text: {e}")
         else:
             st.warning("Please enter some text before saving.")
+
+# ----------------------- Search Page -----------------------
+
+elif page == "Search":
+    st.title("🔍 Search Page")
+
+    st.header("🔎 Search Stored Knowledge")
+    query_input = st.text_input("Enter keywords to search:")
+
+    if st.button("Search"):
+        if query_input.strip():
+            with st.spinner("Searching for relevant texts..."):
+                try:
+                    query_keywords = [kw.strip().lower() for kw in query_input.split(',')]
+
+                    all_keywords = []
+                    all_texts = []
+
+                    try:
+                        with open(filename, 'r', encoding='utf-8') as file:
+                            lines = file.readlines()
+
+                            current_text = ""
+                            current_keywords = ""
+                            for line in lines:
+                                if line.startswith("Text:"):
+                                    current_text = line.replace("Text:", "").strip()
+                                elif line.startswith("Keywords:"):
+                                    current_keywords = [kw.strip().lower() for kw in line.replace("Keywords:", "").split(',')]
+                                    all_texts.append(current_text)
+                                    all_keywords.append(current_keywords)
+                    except FileNotFoundError:
+                        st.error("No data found. Please add some entries in the Input page first.")
+
+                    # Find matching texts
+                    matching_texts = []
+                    for text, keywords in zip(all_texts, all_keywords):
+                        if any(keyword in keywords for keyword in query_keywords):
+                            matching_texts.append(text)
+
+                    if matching_texts:
+                        st.session_state.search_results = matching_texts
+                        st.success("Search completed!")
+                    else:
+                        st.session_state.search_results = []
+                        st.warning("No matching texts found.")
+
+                except Exception as e:
+                    st.error(f"Error during search: {e}")
+        else:
+            st.warning("Please enter keywords to search.")
+
+    if st.session_state.search_results:
+        st.header("📄 Search Results")
+        for idx, result in enumerate(st.session_state.search_results):
+            st.markdown(f"### Result {idx + 1}")
+            st.text_area("", result, height=150)
+
+        if st.button("Generate PDF of Results"):
+            with st.spinner("Generating PDF..."):
+                try:
+                    pdf = generate_pdf(st.session_state.search_results)
+                    pdf_bytes = pdf.output(dest='S').encode('latin1')
+                    st.download_button(
+                        label="Download PDF",
+                        data=pdf_bytes,
+                        file_name="search_results.pdf",
+                        mime="application/pdf"
+                    )
+                    st.success("PDF generated successfully!")
+                except Exception as e:
+                    st.error(f"Error generating PDF: {e}")
+
