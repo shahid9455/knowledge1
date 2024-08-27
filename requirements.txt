@@ -1,4 +1,11 @@
-openai
-ibm-watson
 streamlit
+SpeechRecognition
+pymupdf
+python-docx
+ibm-watson
+requests
+fpdf
 reportlab
+setuptools
+pyaudio
+streamlit-audiorec
